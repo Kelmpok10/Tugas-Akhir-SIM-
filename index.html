@@ -13,7 +13,7 @@
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #ffffff 0%, #b4b4b4 100%);
+            background: linear-gradient(135deg, #ffffff 0%, #e9e9e9 100%);
             min-height: 100vh;
             padding: 20px;
         }
@@ -26,6 +26,33 @@
         .admin-container {
             max-width: 1400px;
             margin: 0 auto;
+        }
+
+        .firebase-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            color: #856404;
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 0.9em;
+            z-index: 2000;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .firebase-status.connected {
+            background: #d4edda;
+            border-color: #28a745;
+            color: #155724;
+        }
+
+        .firebase-status.error {
+            background: #f8d7da;
+            border-color: #dc3545;
+            color: #721c24;
         }
 
         .header {
@@ -53,7 +80,7 @@
             position: absolute;
             top: 20px;
             right: 20px;
-            background: linear-gradient(135deg, #415ac6 0%, #4139da 100%);
+            background: linear-gradient(135deg, #667eea 0%, #4d3ed6 100%);
             color: white;
             border: none;
             padding: 10px 20px;
@@ -227,7 +254,7 @@
         .submit-btn {
             width: 100%;
             padding: 15px;
-            background: linear-gradient(135deg, #3a51b7 0%, #3133b7 100%);
+            background: linear-gradient(135deg, #667eea 0%, #5263d1 100%);
             color: white;
             border: none;
             border-radius: 10px;
@@ -388,7 +415,7 @@
         }
 
         .stat-card {
-            background: linear-gradient(135deg, #3a56d6 0%, #2e4ad8 100%);
+            background: linear-gradient(135deg, #667eea 0%, #414dd6 100%);
             color: white;
             padding: 25px;
             border-radius: 15px;
@@ -410,10 +437,6 @@
         .stat-card p {
             font-size: 0.9em;
             opacity: 0.9;
-        }
-
-        .stat-card.clickable {
-            cursor: pointer;
         }
 
         .charts-grid {
@@ -705,6 +728,12 @@
             .chart-container {
                 padding: 20px;
             }
+
+            .firebase-status {
+                position: static;
+                margin-bottom: 20px;
+                text-align: center;
+            }
         }
 
         @media (max-width: 480px) {
@@ -731,6 +760,11 @@
     </style>
 </head>
 <body>
+    <!-- Firebase Status Indicator -->
+    <div id="firebaseStatus" class="firebase-status">
+        ⏳ Menginisialisasi Firebase...
+    </div>
+
     <div id="userView">
         <div class="container">
             <div class="header">
@@ -878,11 +912,11 @@
                     <h3 id="completedReports">0</h3>
                     <p>Selesai</p>
                 </div>
-                <div class="stat-card clickable" onclick="filterByFollowup('yes')">
+                <div class="stat-card" onclick="filterByFollowup('yes')">
                     <h3 id="followedUpReports">0</h3>
                     <p>Sudah Ditindaklanjuti</p>
                 </div>
-                <div class="stat-card clickable" onclick="filterByFollowup('no')">
+                <div class="stat-card" onclick="filterByFollowup('no')">
                     <h3 id="notFollowedUpReports">0</h3>
                     <p>Belum Ditindaklanjuti</p>
                 </div>
@@ -1016,22 +1050,100 @@
         </div>
     </div>
 
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
     <script>
         // ========================================
         // FIREBASE CONFIGURATION
+        // ⚠️ GANTI DENGAN KONFIGURASI FIREBASE ANDA
         // ========================================
        const firebaseConfig = {
-  apiKey: "AIzaSyBmAsAYwf-Z8Oszd4Nka3vwFIkogk_Aggw",
-  authDomain: "tugas-akhir-sim-860b6.firebaseapp.com",
-  databaseURL: "https://tugas-akhir-sim-860b6-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "tugas-akhir-sim-860b6",
-  storageBucket: "tugas-akhir-sim-860b6.firebasestorage.app",
-  messagingSenderId: "953625302820",
-  appId: "1:953625302820:web:a4216878a26c3efada05b1",
-  measurementId: "G-MZGSGNP12B"
+             apiKey: "AIzaSyBmAsAYwf-Z8Oszd4Nka3vwFIkogk_Aggw",
+             authDomain: "tugas-akhir-sim-860b6.firebaseapp.com",
+             databaseURL: "https://tugas-akhir-sim-860b6-default-rtdb.asia-southeast1.firebasedatabase.app",
+             projectId: "tugas-akhir-sim-860b6",
+             storageBucket: "tugas-akhir-sim-860b6.firebasestorage.app",
+             messagingSenderId: "953625302820",
+             appId: "1:953625302820:web:a4216878a26c3efada05b1",
+             measurementId: "G-MZGSGNP12B"
 };
 
+        // ========================================
+        // FIREBASE INITIALIZATION
+        // ========================================
+        let database = null;
+        let firebaseInitialized = false;
+
+        function initFirebase() {
+            try {
+                firebase.initializeApp(firebaseConfig);
+                database = firebase.database();
+                firebaseInitialized = true;
+                
+                // Test koneksi
+                database.ref('.info/connected').on('value', (snapshot) => {
+                    if (snapshot.val() === true) {
+                        updateFirebaseStatus('connected', '✅ Firebase Terhubung');
+                        console.log('✅ Firebase connected successfully');
+                    } else {
+                        updateFirebaseStatus('error', '⚠️ Firebase Terputus');
+                        console.warn('⚠️ Firebase disconnected');
+                    }
+                });
+
+                // Listen to reports real-time
+                setupRealtimeListener();
+                
+            } catch (error) {
+                console.error('❌ Firebase initialization error:', error);
+                updateFirebaseStatus('error', '❌ Firebase Error: ' + error.message);
+                firebaseInitialized = false;
+            }
+        }
+
+        function updateFirebaseStatus(status, message) {
+            const statusEl = document.getElementById('firebaseStatus');
+            statusEl.textContent = message;
+            statusEl.className = 'firebase-status ' + status;
+            
+            if (status === 'connected') {
+                setTimeout(() => {
+                    statusEl.style.display = 'none';
+                }, 3000);
+            }
+        }
+
+        function setupRealtimeListener() {
+            if (!firebaseInitialized) return;
+
+            database.ref('reports').on('value', (snapshot) => {
+                const data = snapshot.val();
+                if (data) {
+                    allReports = Object.values(data).sort((a, b) => b.id - a.id);
+                    localStorage.setItem('spas_reports', JSON.stringify(allReports));
+                    
+                    // Update dashboard jika sedang di admin view
+                    if (!document.getElementById('adminView').classList.contains('hidden')) {
+                        updateStatistics();
+                        displayAdminReports();
+                        createCharts();
+                    }
+                    
+                    console.log('📊 Data synced from Firebase:', allReports.length, 'reports');
+                } else {
+                    console.log('📭 No reports in Firebase');
+                }
+            }, (error) => {
+                console.error('❌ Firebase read error:', error);
+            });
+        }
+
+        // ========================================
+        // CONSTANTS & VARIABLES
+        // ========================================
         const ADMIN_CREDENTIALS = {
             '131424069': '12345678',
             '131424089': '12345678'
@@ -1062,10 +1174,14 @@
         let monthlyChart = null;
         let statusChart = null;
 
+        // ========================================
+        // INITIALIZATION
+        // ========================================
         function init() {
             setCurrentDateTime();
             loadFromStorage();
             setupEventListeners();
+            initFirebase();
         }
 
         function setupEventListeners() {
@@ -1088,7 +1204,6 @@
             document.getElementById('filterMonth').addEventListener('change', filterReports);
             document.getElementById('filterFollowup').addEventListener('change', filterReports);
 
-            // Followup upload handlers
             document.getElementById('followupUploadArea').addEventListener('click', () => document.getElementById('followupFileInput').click());
             document.getElementById('followupFileInput').addEventListener('change', handleFollowupFileSelect);
             document.getElementById('removeFollowupFile').addEventListener('click', removeFollowupFile);
@@ -1142,6 +1257,28 @@
 
         function saveToStorage() {
             localStorage.setItem('spas_reports', JSON.stringify(allReports));
+            saveToFirebase();
+        }
+
+        function saveToFirebase() {
+            if (!firebaseInitialized) {
+                console.warn('⚠️ Firebase not initialized, data saved to localStorage only');
+                return;
+            }
+
+            try {
+                allReports.forEach(report => {
+                    database.ref('reports/' + report.id).set(report)
+                        .then(() => {
+                            console.log('✅ Report', report.id, 'saved to Firebase');
+                        })
+                        .catch((error) => {
+                            console.error('❌ Error saving report', report.id, ':', error);
+                        });
+                });
+            } catch (error) {
+                console.error('❌ Firebase save error:', error);
+            }
         }
 
         function saveCredentials() {
@@ -1160,6 +1297,9 @@
             return String(text).replace(/[&<>"']/g, m => map[m]);
         }
 
+        // ========================================
+        // USER FORM HANDLERS
+        // ========================================
         function handleAnonimToggle(e) {
             const namaGroup = document.getElementById('namaGroup');
             const jabatanGroup = document.getElementById('jabatanGroup');
@@ -1382,6 +1522,9 @@
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
+        // ========================================
+        // ADMIN LOGIN
+        // ========================================
         function showLoginModal() {
             document.getElementById('loginModal').classList.add('show');
             document.getElementById('loginUsername').value = '';
@@ -1422,6 +1565,9 @@
             }
         }
 
+        // ========================================
+        // ADMIN DASHBOARD
+        // ========================================
         function showAdminDashboard() {
             document.getElementById('userView').classList.add('hidden');
             document.getElementById('adminView').classList.remove('hidden');
@@ -1498,8 +1644,7 @@
                             ${report.fileData && report.fileData !== 'PDF_FILE' ? 
                                 `<br><img src="${report.fileData}" class="image-preview" onclick="showImageModal('${report.fileData}')" alt="Bukti">` 
                                 : ''}
-                        </div>
-                    ` : ''}
+                        </div>` : ''}
                     <div class="report-actions">
                         <button class="action-btn btn-detail" onclick="showReportDetail(${report.id})">📄 Detail Lengkap</button>
                         <button class="action-btn btn-followup" onclick="showFollowupModal(${report.id})">
@@ -1566,6 +1711,18 @@
             if (confirm('Apakah Anda yakin ingin menghapus laporan ini?')) {
                 allReports = allReports.filter(r => r.id !== reportId);
                 saveToStorage();
+                
+                // Delete from Firebase
+                if (firebaseInitialized) {
+                    database.ref('reports/' + reportId).remove()
+                        .then(() => {
+                            console.log('✅ Report deleted from Firebase');
+                        })
+                        .catch((error) => {
+                            console.error('❌ Error deleting from Firebase:', error);
+                        });
+                }
+                
                 updateStatistics();
                 displayAdminReports();
                 createCharts();
@@ -1667,7 +1824,6 @@
             const report = allReports.find(r => r.id === reportId);
             
             if (report && report.followup) {
-                // Edit existing followup
                 document.getElementById('followupText').value = report.followup.penjelasan;
                 if (report.followup.foto) {
                     followupFileData = report.followup.foto;
@@ -1676,7 +1832,6 @@
                     document.getElementById('followupFileName').textContent = 'Foto sebelumnya';
                 }
             } else {
-                // New followup
                 document.getElementById('followupText').value = '';
                 removeFollowupFile();
             }
@@ -1716,6 +1871,9 @@
             }
         }
 
+        // ========================================
+        // CHARTS
+        // ========================================
         function createCharts() {
             createMonthlyChart();
             createStatusChart();
@@ -1815,6 +1973,9 @@
             });
         }
 
+        // ========================================
+        // SETTINGS
+        // ========================================
         function changePassword() {
             const newPassword = document.getElementById('newPassword').value;
             
@@ -1831,6 +1992,9 @@
             }
         }
 
+        // ========================================
+        // INITIALIZE APP
+        // ========================================
         window.addEventListener('DOMContentLoaded', init);
     </script>
 </body>
